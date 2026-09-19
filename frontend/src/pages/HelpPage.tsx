@@ -1,12 +1,11 @@
-import { Modal } from "./Modal";
-
-interface HelpModalProps {
-  onClose: () => void;
-}
-
-export function HelpModal({ onClose }: HelpModalProps) {
+export function HelpPage() {
   return (
-    <Modal titleId="help-title" title="서비스 이용 방법" onClose={onClose}>
+    <main className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-10">
+      <header>
+        <h1 className="text-2xl font-extrabold text-primary">서비스 이용 방법</h1>
+        <p className="mt-2 text-lg">Easy-Link를 이렇게 사용해요.</p>
+      </header>
+
       <ol className="flex flex-col gap-5 text-lg leading-relaxed">
         <li>
           <strong className="text-primary">1단계.</strong> 쉬운 안내문으로 바꾸고 싶은 공공서비스
@@ -25,6 +24,6 @@ export function HelpModal({ onClose }: HelpModalProps) {
           저장되어 나중에 다시 볼 수 있어요.
         </li>
       </ol>
-    </Modal>
+    </main>
   );
 }

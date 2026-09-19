@@ -5,13 +5,12 @@ import { KakaoShareButton } from "./KakaoShareButton";
 
 interface GuideResultProps {
   guide: GuideResponse;
-  onReset: () => void;
 }
 
 // forwardRef lets the page move focus here once the guide loads, so keyboard
 // and screen-reader users land on the result instead of tabbing past the form.
 export const GuideResult = forwardRef<HTMLElement, GuideResultProps>(function GuideResult(
-  { guide, onReset },
+  { guide },
   ref,
 ) {
   const fullText = [
@@ -44,16 +43,7 @@ export const GuideResult = forwardRef<HTMLElement, GuideResultProps>(function Gu
 
       <TtsButton text={fullText} />
 
-      <div className="flex flex-col gap-4 sm:flex-row">
-        <KakaoShareButton guide={guide} />
-        <button
-          type="button"
-          onClick={onReset}
-          className="flex min-h-[56px] flex-1 items-center justify-center rounded-lg bg-ink px-6 py-4 text-xl font-extrabold text-paper transition-colors hover:bg-ink/80 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        >
-          ← 처음으로
-        </button>
-      </div>
+      <KakaoShareButton guide={guide} />
     </section>
   );
 });

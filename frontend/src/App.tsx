@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
-import { QuickLinksModal } from "./components/QuickLinksModal";
-import { HelpModal } from "./components/HelpModal";
 import { MainPage } from "./pages/MainPage";
 import { ArchivePage } from "./pages/ArchivePage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { QuickLinksPage } from "./pages/QuickLinksPage";
+import { HelpPage } from "./pages/HelpPage";
 import { fetchGuide } from "./services/api";
 import { usePolicyArchive } from "./hooks/usePolicyArchive";
 import type { GuideResponse } from "./types/guide";
@@ -24,8 +24,6 @@ function deriveArchiveTitle(summary: string): string {
 export default function App() {
   const [page, setPage] = useState<Page>("main");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isQuickLinksOpen, setIsQuickLinksOpen] = useState(false);
-  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +66,6 @@ export default function App() {
   }
 
   function handleQuickLinkSelect(url: string) {
-    setIsQuickLinksOpen(false);
     setPage("main");
     void handleSubmit(url);
   }
@@ -82,19 +79,7 @@ export default function App() {
     <div className="flex min-h-screen flex-col md:flex-row">
       <TopBar isSidebarOpen={isSidebarOpen} onToggleSidebar={() => setIsSidebarOpen((open) => !open)} />
 
-      <Sidebar
-        currentPage={page}
-        isOpen={isSidebarOpen}
-        onNavigate={handleNavigate}
-        onOpenQuickLinks={() => {
-          setIsQuickLinksOpen(true);
-          setIsSidebarOpen(false);
-        }}
-        onOpenHelp={() => {
-          setIsHelpOpen(true);
-          setIsSidebarOpen(false);
-        }}
-      />
+      <Sidebar currentPage={page} isOpen={isSidebarOpen} onNavigate={handleNavigate} />
 
       <div className="flex-1">
         {page === "main" && (
@@ -110,12 +95,9 @@ export default function App() {
         )}
         {page === "archive" && <ArchivePage items={archiveItems} onSelect={handleArchiveSelect} />}
         {page === "settings" && <SettingsPage />}
+        {page === "quick-links" && <QuickLinksPage onSelect={handleQuickLinkSelect} />}
+        {page === "help" && <HelpPage />}
       </div>
-
-      {isQuickLinksOpen && (
-        <QuickLinksModal onClose={() => setIsQuickLinksOpen(false)} onSelect={handleQuickLinkSelect} />
-      )}
-      {isHelpOpen && <HelpModal onClose={() => setIsHelpOpen(false)} />}
     </div>
   );
 }
