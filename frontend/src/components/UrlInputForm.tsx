@@ -4,9 +4,16 @@ import type { FormEvent } from "react";
 interface UrlInputFormProps {
   isLoading: boolean;
   onSubmit: (url: string) => void;
+  hasError: boolean;
+  errorId: string;
 }
 
-export function UrlInputForm({ isLoading, onSubmit }: UrlInputFormProps) {
+// Browser default validation messages follow OS/browser locale, not the page's
+// lang attribute — set a Korean message explicitly so senior users always see
+// consistent guidance regardless of their device settings.
+const URL_VALIDITY_MESSAGE = "올바른 웹사이트 주소를 입력해 주세요 (예: https://www.gov.kr/...)";
+
+export function UrlInputForm({ isLoading, onSubmit, hasError, errorId }: UrlInputFormProps) {
   const [url, setUrl] = useState("");
 
   function handleSubmit(event: FormEvent) {
@@ -27,13 +34,19 @@ export function UrlInputForm({ isLoading, onSubmit }: UrlInputFormProps) {
         required
         placeholder="예: https://www.gov.kr/..."
         value={url}
-        onChange={(event) => setUrl(event.target.value)}
+        onChange={(event) => {
+          event.currentTarget.setCustomValidity("");
+          setUrl(event.target.value);
+        }}
+        onInvalid={(event) => event.currentTarget.setCustomValidity(URL_VALIDITY_MESSAGE)}
+        aria-invalid={hasError}
+        aria-describedby={hasError ? errorId : undefined}
         className="rounded-lg border-4 border-ink px-4 py-4 text-lg focus:border-primary focus:outline-none"
       />
       <button
         type="submit"
         disabled={isLoading}
-        className="rounded-lg bg-primary px-6 py-4 text-xl font-bold text-paper transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-primary/60"
+        className="rounded-lg bg-primary px-6 py-4 text-xl font-bold text-paper transition-colors hover:bg-primary-dark focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:bg-primary/60"
       >
         {isLoading ? "안내문을 만드는 중..." : "쉬운 안내문 만들기"}
       </button>

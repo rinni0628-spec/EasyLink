@@ -84,6 +84,14 @@ npm run dev             # http://localhost:5173
 
 프론트엔드 개발 서버는 `/api` 요청을 백엔드(`http://localhost:4000`)로 프록시하도록 설정되어 있습니다. 브라우저에서 `http://localhost:5173`에 접속해 URL을 입력하면 바로 테스트할 수 있습니다.
 
+### 4. (선택) 프론트엔드 + 백엔드 동시 실행
+매번 터미널 두 개를 여는 대신, 저장소 루트에서 한 번에 띄울 수도 있습니다.
+```bash
+npm install              # 루트 devDependency(concurrently) 설치 (최초 1회)
+npm run dev               # backend(:4000) + frontend(:5173)을 동시에 실행
+```
+백엔드가 응답하지 않으면 프론트엔드는 "안내문을 만드는 중 문제가 발생했어요"와 같은 일반 오류만 보여주므로, URL을 입력했는데 원인 모를 오류가 뜬다면 먼저 `http://localhost:4000/health`가 `{"status":"ok"}`를 반환하는지, `backend/.env`에 유효한 `OPENROUTER_API_KEY`가 들어 있는지부터 확인하세요.
+
 ## Expected Impact
 
 - **사회적 가치 창출**: 디지털 소외계층인 시니어 계층의 공공서비스 접근성을 실질적으로 개선하여, 정보 격차 해소에 기여합니다.

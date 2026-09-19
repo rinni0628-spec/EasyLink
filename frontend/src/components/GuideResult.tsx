@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import type { GuideResponse } from "../types/guide";
 import { TtsButton } from "./TtsButton";
 
@@ -5,14 +6,24 @@ interface GuideResultProps {
   guide: GuideResponse;
 }
 
-export function GuideResult({ guide }: GuideResultProps) {
+// forwardRef lets the page move focus here once the guide loads, so keyboard
+// and screen-reader users land on the result instead of tabbing past the form.
+export const GuideResult = forwardRef<HTMLElement, GuideResultProps>(function GuideResult(
+  { guide },
+  ref,
+) {
   const fullText = [
     guide.summary,
     ...guide.steps.map((step) => `${step.step}단계. ${step.title}. ${step.description}`),
   ].join(" ");
 
   return (
-    <section aria-label="쉬운 안내문" className="flex flex-col gap-6">
+    <section
+      ref={ref}
+      tabIndex={-1}
+      aria-label="쉬운 안내문"
+      className="flex flex-col gap-6 focus:outline-none focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-accent"
+    >
       <div className="rounded-lg border-4 border-ink p-6">
         <h2 className="mb-2 text-xl font-extrabold">한눈에 보기</h2>
         <p className="text-lg leading-relaxed">{guide.summary}</p>
@@ -32,4 +43,4 @@ export function GuideResult({ guide }: GuideResultProps) {
       <TtsButton text={fullText} />
     </section>
   );
-}
+});

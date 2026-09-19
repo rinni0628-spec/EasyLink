@@ -20,9 +20,9 @@ export function TtsButton({ text }: TtsButtonProps) {
       type="button"
       onClick={() => (isSpeaking ? stop() : speak(text))}
       aria-pressed={isSpeaking}
-      className="rounded-lg border-4 border-primary px-5 py-3 text-lg font-bold text-primary transition-colors hover:bg-primary hover:text-paper"
+      className="rounded-lg border-4 border-primary px-5 py-3 text-lg font-bold text-primary transition-colors hover:bg-primary hover:text-paper focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-accent"
     >
-      {isSpeaking ? "🔇 그만 듣기" : "🔊 소리로 듣기"}
+      <span aria-hidden="true">{isSpeaking ? "🔇" : "🔊"}</span> {isSpeaking ? "그만 듣기" : "소리로 듣기"}
     </button>
   );
 }
