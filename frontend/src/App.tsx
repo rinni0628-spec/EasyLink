@@ -1,25 +1,45 @@
 import { useEffect, useRef, useState } from "react";
-import { UrlInputForm } from "./components/UrlInputForm";
-import { LoadingState } from "./components/LoadingState";
-import { GuideResult } from "./components/GuideResult";
+import { Sidebar } from "./components/Sidebar";
+import { TopBar } from "./components/TopBar";
+import { QuickLinksModal } from "./components/QuickLinksModal";
+import { HelpModal } from "./components/HelpModal";
+import { MainPage } from "./pages/MainPage";
+import { ArchivePage } from "./pages/ArchivePage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { fetchGuide } from "./services/api";
+import { usePolicyArchive } from "./hooks/usePolicyArchive";
 import type { GuideResponse } from "./types/guide";
+import type { Page } from "./types/navigation";
 
 const ERROR_ID = "guide-error";
+const ARCHIVE_TITLE_MAX_LENGTH = 40;
+
+function deriveArchiveTitle(summary: string): string {
+  const trimmed = summary.trim();
+  return trimmed.length > ARCHIVE_TITLE_MAX_LENGTH
+    ? `${trimmed.slice(0, ARCHIVE_TITLE_MAX_LENGTH)}…`
+    : trimmed;
+}
 
 export default function App() {
+  const [page, setPage] = useState<Page>("main");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isQuickLinksOpen, setIsQuickLinksOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guide, setGuide] = useState<GuideResponse | null>(null);
   const resultRef = useRef<HTMLElement>(null);
+  const { items: archiveItems, addItem: addArchiveItem } = usePolicyArchive();
 
   // Move focus to the result once it renders, so keyboard/screen-reader users
   // land on the guide instead of needing to tab past the whole form again.
   useEffect(() => {
-    if (guide && !isLoading) {
+    if (guide && !isLoading && page === "main") {
       resultRef.current?.focus();
     }
-  }, [guide, isLoading]);
+  }, [guide, isLoading, page]);
 
   async function handleSubmit(url: string) {
     setIsLoading(true);
@@ -28,6 +48,7 @@ export default function App() {
     try {
       const result = await fetchGuide(url);
       setGuide(result);
+      addArchiveItem(url, deriveArchiveTitle(result.summary));
     } catch (err) {
       setError(err instanceof Error ? err.message : "알 수 없는 오류가 발생했어요.");
     } finally {
@@ -35,33 +56,66 @@ export default function App() {
     }
   }
 
-  return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-8 px-6 py-10">
-      <header>
-        <h1 className="text-2xl font-extrabold text-primary">Easy-Link</h1>
-        <p className="mt-2 text-lg">복잡한 공공서비스 웹페이지를 쉬운 안내문으로 바꿔드려요.</p>
-      </header>
+  function handleNavigate(nextPage: Page) {
+    setPage(nextPage);
+    setIsSidebarOpen(false);
+  }
 
-      <UrlInputForm
-        isLoading={isLoading}
-        onSubmit={handleSubmit}
-        hasError={error !== null}
-        errorId={ERROR_ID}
+  function handleArchiveSelect(url: string) {
+    setPage("main");
+    setIsSidebarOpen(false);
+    void handleSubmit(url);
+  }
+
+  function handleQuickLinkSelect(url: string) {
+    setIsQuickLinksOpen(false);
+    setPage("main");
+    void handleSubmit(url);
+  }
+
+  function handleReset() {
+    setGuide(null);
+    setError(null);
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col md:flex-row">
+      <TopBar isSidebarOpen={isSidebarOpen} onToggleSidebar={() => setIsSidebarOpen((open) => !open)} />
+
+      <Sidebar
+        currentPage={page}
+        isOpen={isSidebarOpen}
+        onNavigate={handleNavigate}
+        onOpenQuickLinks={() => {
+          setIsQuickLinksOpen(true);
+          setIsSidebarOpen(false);
+        }}
+        onOpenHelp={() => {
+          setIsHelpOpen(true);
+          setIsSidebarOpen(false);
+        }}
       />
 
-      {isLoading && <LoadingState />}
+      <div className="flex-1">
+        {page === "main" && (
+          <MainPage
+            isLoading={isLoading}
+            error={error}
+            guide={guide}
+            onSubmit={handleSubmit}
+            onReset={handleReset}
+            resultRef={resultRef}
+            errorId={ERROR_ID}
+          />
+        )}
+        {page === "archive" && <ArchivePage items={archiveItems} onSelect={handleArchiveSelect} />}
+        {page === "settings" && <SettingsPage />}
+      </div>
 
-      {error && (
-        <p
-          id={ERROR_ID}
-          role="alert"
-          className="rounded-lg border-4 border-accent p-4 text-lg font-bold text-accent"
-        >
-          {error}
-        </p>
+      {isQuickLinksOpen && (
+        <QuickLinksModal onClose={() => setIsQuickLinksOpen(false)} onSelect={handleQuickLinkSelect} />
       )}
-
-      {guide && !isLoading && <GuideResult ref={resultRef} guide={guide} />}
-    </main>
+      {isHelpOpen && <HelpModal onClose={() => setIsHelpOpen(false)} />}
+    </div>
   );
 }

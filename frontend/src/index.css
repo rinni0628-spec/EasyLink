@@ -2,6 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Default (normal-contrast) palette. Overridden by [data-contrast="high"]
+   below -- see useContrastMode.ts. Referenced from tailwind.config.js so
+   every Tailwind color utility (bg-paper, text-ink, border-primary, ...)
+   follows the active mode automatically. */
+:root {
+  --color-ink: #111111;
+  --color-paper: #ffffff;
+  --color-primary: #1a3fa9;
+  --color-primary-dark: #122c78;
+  --color-accent: #b3261e;
+}
+
+/* Maximum-contrast black/yellow scheme for the Settings page's 고대비 toggle. */
+html[data-contrast="high"] {
+  --color-ink: #ffffff;
+  --color-paper: #000000;
+  --color-primary: #ffd60a;
+  --color-primary-dark: #e6c200;
+  --color-accent: #ff6b57;
+}
+
 /* Senior-friendly baseline: larger default type before any component styles apply. */
 html {
   font-size: 18px;

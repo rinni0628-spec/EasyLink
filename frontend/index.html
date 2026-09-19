@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Easy-Link | 쉬운 공공서비스 안내</title>
+    <!--
+      Kakao JavaScript SDK: powers the "카카오톡 공유하기" button.
+      Loaded as a global script (not an npm module) because that's how Kakao
+      ships it -- it attaches itself to `window.Kakao`. Initialized with the
+      app's JS key (VITE_KAKAO_JS_KEY) in useKakaoShare.ts.
+      Version pinned to the latest at time of writing (2.8.3); check
+      https://developers.kakao.com/docs/latest/en/javascript/download for
+      newer releases and their integrity (SRI) hash before upgrading.
+    -->
+    <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.8.3/kakao.min.js" crossorigin="anonymous"></script>
   </head>
   <body>
     <div id="root"></div>
