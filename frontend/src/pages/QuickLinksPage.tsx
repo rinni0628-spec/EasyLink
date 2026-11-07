@@ -18,19 +18,19 @@ interface QuickLinksPageProps {
 // most. Selecting one switches to the Main Page and submits the URL automatically.
 export function QuickLinksPage({ onSelect }: QuickLinksPageProps) {
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-10">
-      <header>
-        <h1 className="text-2xl font-extrabold text-primary">자주 찾는 공공서비스</h1>
-        <p className="mt-2 text-lg">아래 기관을 누르면 바로 쉬운 안내문을 만들어 드려요.</p>
+    <main className="flex flex-col gap-6 px-5 py-6">
+      <header className="card-sticker rounded-3xl bg-highlight px-6 py-6 text-center">
+        <h1 className="text-2xl font-black text-ink">자주 찾는 공공서비스</h1>
+        <p className="mt-2 text-lg text-muted">아래 기관을 누르면 바로 쉬운 안내문을 만들어 드려요.</p>
       </header>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-2 gap-4">
         {QUICK_LINKS.map((link) => (
           <button
             key={link.url}
             type="button"
             onClick={() => onSelect(link.url)}
-            className="flex min-h-[64px] items-center justify-center rounded-lg border-4 border-primary px-4 py-4 text-xl font-extrabold text-primary transition-colors hover:bg-primary hover:text-paper focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="card-sticker flex min-h-[80px] items-center justify-center rounded-2xl px-4 py-4 text-center text-xl font-extrabold text-ink transition-transform hover:bg-primary hover:text-paper active:scale-95 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             {link.name}
           </button>

@@ -22,6 +22,32 @@ const NOISE_SELECTORS = [
 
 const BLOCKED_HOSTNAMES = new Set(["localhost", "localhost.localdomain", "0.0.0.0"]);
 
+// Below this, body text is too thin to build a guide from directly. Verified
+// against a real NPS 공지사항 detail page whose entire content is an attached
+// poster image: the surrounding board chrome alone (제목/작성부서/등록일/조회수
+// /작성자/연락처 table, 첨부파일 안내, 이전글/다음글, 퀵메뉴 footer -- standard on
+// most Korean government bulletin-board templates) measured 625 characters
+// with zero actual guidance text, so the threshold has to clear that.
+const IMAGE_FALLBACK_TEXT_THRESHOLD = 800;
+
+// Filenames that are almost never the poster/notice itself.
+const NON_CONTENT_IMAGE_PATTERN = /logo|icon|sprite|pixel|spacer|button|btn[-_.]/i;
+
+// Korean government CMS boards commonly render an uploaded attachment/body
+// image through a dynamic viewer endpoint rather than a static file path
+// (e.g. NPS's /crosseditor/imageView.do?fileName=...). A src matching one of
+// these is strong evidence of "this is the actual uploaded content", so it's
+// preferred over other candidates found in document order.
+const CMS_CONTENT_IMAGE_PATTERN = /imageview|filedown|download\.do|attach|upload|crosseditor|editor/i;
+
+export interface CrawlResult {
+  text: string;
+  // A base64 data URI (data:image/...;base64,...), not a remote URL -- see
+  // fetchImageAsDataUri below for why. The OpenAI-compatible image_url.url
+  // field accepts either form, so this still drops straight into that shape.
+  posterImageUrl?: string;
+}
+
 function isValidHttpUrl(value: string): boolean {
   try {
     const parsed = new URL(value);
@@ -88,13 +114,82 @@ async function assertPublicHost(hostname: string): Promise<void> {
   }
 }
 
+// Best-effort pick of the plausible "this is the actual notice" image --
+// nav/footer/header images are already gone by the time this runs
+// (NOISE_SELECTORS stripped them), so this mostly filters out small
+// decorative icons and obvious non-content filenames, then prefers a CMS
+// content-viewer endpoint over a plain static asset path when both exist
+// (a static site logo/icon can otherwise sort earlier in document order
+// than the actual uploaded poster).
+function findPosterImageUrl($: cheerio.CheerioAPI, pageUrl: string): string | undefined {
+  const candidates: string[] = [];
+
+  for (const el of $("img").toArray()) {
+    const src = $(el).attr("src");
+    if (!src || src.startsWith("data:")) continue;
+    if (NON_CONTENT_IMAGE_PATTERN.test(src)) continue;
+
+    const width = Number($(el).attr("width"));
+    const height = Number($(el).attr("height"));
+    if ((width > 0 && width < 200) || (height > 0 && height < 200)) continue;
+
+    let absolute: string;
+    try {
+      absolute = new URL(src, pageUrl).toString();
+    } catch {
+      continue;
+    }
+    if (!isValidHttpUrl(absolute)) continue;
+
+    candidates.push(absolute);
+  }
+
+  return candidates.find((src) => CMS_CONTENT_IMAGE_PATTERN.test(src)) ?? candidates[0];
+}
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+// Handing OpenRouter a remote image URL asks the model provider to fetch it
+// themselves, which turned out unreliable in testing: a free vision model
+// either timed out at 120s or returned an empty completion against a real
+// NPS poster image that our own server fetches in ~200ms. Downloading it
+// here and embedding it as a base64 data URI removes that dependency --
+// data URIs work with effectively every OpenAI-compatible vision model.
+async function fetchImageAsDataUri(imageUrl: string): Promise<string | undefined> {
+  try {
+    await assertPublicHost(new URL(imageUrl).hostname);
+
+    const response = await axios.get(imageUrl, {
+      timeout: CRAWL_TIMEOUT_MS,
+      responseType: "arraybuffer",
+      maxRedirects: MAX_REDIRECTS,
+      maxContentLength: MAX_IMAGE_BYTES,
+      maxBodyLength: MAX_IMAGE_BYTES,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+      },
+      validateStatus: (status) => status === 200,
+    });
+
+    const contentType = String(response.headers["content-type"] ?? "").split(";")[0].trim();
+    const mimeType = contentType.startsWith("image/") ? contentType : "image/jpeg";
+    const base64 = Buffer.from(response.data).toString("base64");
+    return `data:${mimeType};base64,${base64}`;
+  } catch {
+    // Best-effort: if the image can't be fetched, the caller falls back to
+    // whatever sparse text was extracted rather than failing the request.
+    return undefined;
+  }
+}
+
 /**
  * Fetches a public-service page and extracts readable body text.
  * Distinguishes failure modes (invalid URL, blocked/CORS-like refusal,
  * timeout, not found) so the frontend can show a specific, senior-friendly
  * error message instead of a generic failure.
  */
-export async function extractPageText(url: string): Promise<string> {
+export async function extractPageText(url: string): Promise<CrawlResult> {
   if (!isValidHttpUrl(url)) {
     throw new AppError("올바른 형식의 웹페이지 주소가 아닙니다.", 400);
   }
@@ -102,6 +197,9 @@ export async function extractPageText(url: string): Promise<string> {
   await assertPublicHost(new URL(url).hostname);
 
   let html: string;
+  // Tracks the post-redirect URL so relative <img src> values resolve
+  // against the page that actually served them, not the original address.
+  let resolvedUrl = url;
   try {
     const response = await axios.get<string>(url, {
       timeout: CRAWL_TIMEOUT_MS,
@@ -124,6 +222,7 @@ export async function extractPageText(url: string): Promise<string> {
       ?.res?.responseUrl;
     if (finalUrl && finalUrl !== url) {
       await assertPublicHost(new URL(finalUrl).hostname);
+      resolvedUrl = finalUrl;
     }
 
     if (response.status === 403 || response.status === 401) {
@@ -175,7 +274,11 @@ export async function extractPageText(url: string): Promise<string> {
     .filter(Boolean)
     .join("\n");
 
-  if (text.length < 30) {
+  const posterImageSrc =
+    text.length < IMAGE_FALLBACK_TEXT_THRESHOLD ? findPosterImageUrl($, resolvedUrl) : undefined;
+  const posterImageUrl = posterImageSrc ? await fetchImageAsDataUri(posterImageSrc) : undefined;
+
+  if (text.length < 30 && !posterImageUrl) {
     throw new AppError(
       "이 페이지에서는 안내 내용을 찾지 못했어요. 다른 페이지 주소를 시도해 주세요.",
       422,
@@ -183,5 +286,5 @@ export async function extractPageText(url: string): Promise<string> {
   }
 
   // Keep the payload sent to the LLM bounded regardless of page size.
-  return text.slice(0, 8000);
+  return { text: text.slice(0, 8000), posterImageUrl };
 }

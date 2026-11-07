@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,20 +8,47 @@
    every Tailwind color utility (bg-paper, text-ink, border-primary, ...)
    follows the active mode automatically. */
 :root {
-  --color-ink: #111111;
-  --color-paper: #ffffff;
-  --color-primary: #1a3fa9;
-  --color-primary-dark: #122c78;
+  --color-ink: #3e3129;
+  --color-paper: #fffdf7;
+  --color-card: #ffffff;
+  --color-highlight: #fde272;
+  --color-primary: #c2410c;
+  --color-primary-dark: #9a3412;
   --color-accent: #b3261e;
+  --color-muted: #7a6c63;
+  --color-frame: #e8e0d4;
+
+  /* Per-label checklist card tints (normal-contrast only -- see the
+     [data-contrast="high"] override below, which collapses all six back to
+     --color-card so the 고대비 mode keeps its single max-contrast look). */
+  --label-color-target: #dcebff;
+  --label-color-amount: #dff5df;
+  --label-color-apply: #ffe9d6;
+  --label-color-note: #ede9e3;
+  --label-color-caution: #fde2e1;
+  --label-color-contact: #eae0f8;
 }
 
 /* Maximum-contrast black/yellow scheme for the Settings page's 고대비 toggle. */
 html[data-contrast="high"] {
   --color-ink: #ffffff;
   --color-paper: #000000;
+  --color-card: #000000;
+  --color-highlight: #1a1a1a;
   --color-primary: #ffd60a;
   --color-primary-dark: #e6c200;
   --color-accent: #ff6b57;
+  --color-muted: #d4d4d4;
+  --color-frame: #000000;
+
+  /* 접근성 최우선: 고대비 모드에서는 라벨별 색상 구분을 포기하고 전부 카드
+     배경색(검정)으로 되돌려, 최대 대비 보장을 색상 다양성보다 우선한다. */
+  --label-color-target: var(--color-card);
+  --label-color-amount: var(--color-card);
+  --label-color-apply: var(--color-card);
+  --label-color-note: var(--color-card);
+  --label-color-caution: var(--color-card);
+  --label-color-contact: var(--color-card);
 }
 
 /* Senior-friendly baseline: larger default type before any component styles apply. */
@@ -30,4 +58,15 @@ html {
 
 body {
   @apply bg-paper text-ink;
+  font-family: "Noto Sans KR", sans-serif;
+}
+
+/* "Sticker card" look shared by every card-shaped surface across the app --
+   thick ink border plus a solid offset shadow in the same color, so it keeps
+   working (and stays legible) under the 고대비 palette swap above. */
+@layer components {
+  .card-sticker {
+    @apply rounded-2xl border-4 border-ink bg-card;
+    box-shadow: 4px 4px 0 0 var(--color-ink);
+  }
 }

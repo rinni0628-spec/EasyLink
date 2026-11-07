@@ -1,24 +1,24 @@
+import type { Page } from "../types/navigation";
+
 interface TopBarProps {
-  isSidebarOpen: boolean;
-  onToggleSidebar: () => void;
+  currentPage: Page;
 }
 
-// Mobile-only header. Per project a11y guidance, the sidebar toggle is a
-// plain text button ("[메뉴]") instead of a hamburger icon, since an icon-only
-// control can be ambiguous for senior users unfamiliar with the convention.
-export function TopBar({ isSidebarOpen, onToggleSidebar }: TopBarProps) {
+const PAGE_LABEL: Record<Page, string> = {
+  main: "쉬운 안내문 만들기",
+  archive: "내 정책 보관소",
+  "quick-links": "자주 찾는 공공서비스",
+  help: "서비스 이용 방법",
+  settings: "화면 및 음성 설정",
+};
+
+// App "status bar": brand mark plus the current screen's title, mirroring a
+// native app header. Navigation itself lives entirely in the bottom tab bar.
+export function TopBar({ currentPage }: TopBarProps) {
   return (
-    <div className="flex items-center justify-between border-b-4 border-ink bg-gray-100 px-6 py-4 md:hidden">
-      <span className="text-xl font-extrabold text-primary">Easy-Link</span>
-      <button
-        type="button"
-        onClick={onToggleSidebar}
-        aria-expanded={isSidebarOpen}
-        aria-controls="main-sidebar"
-        className="rounded-lg border-4 border-ink px-5 py-3 text-lg font-bold transition-colors hover:bg-ink hover:text-paper focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      >
-        {isSidebarOpen ? "[메뉴 닫기]" : "[메뉴]"}
-      </button>
+    <div className="flex flex-shrink-0 items-center justify-between border-b-4 border-ink bg-highlight px-5 py-3">
+      <span className="text-xl font-black text-ink">Easy-Link</span>
+      <span className="text-sm font-bold text-muted">{PAGE_LABEL[currentPage]}</span>
     </div>
   );
 }

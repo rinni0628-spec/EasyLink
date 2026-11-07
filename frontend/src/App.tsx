@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { MainPage } from "./pages/MainPage";
@@ -6,97 +6,204 @@ import { ArchivePage } from "./pages/ArchivePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { QuickLinksPage } from "./pages/QuickLinksPage";
 import { HelpPage } from "./pages/HelpPage";
-import { fetchGuide } from "./services/api";
+import { fetchFollowUpAnswer, fetchGuide } from "./services/api";
 import { usePolicyArchive } from "./hooks/usePolicyArchive";
-import type { GuideResponse } from "./types/guide";
+import { isLikelyUrl, normalizeUrl } from "./utils/url";
+import { createId } from "./utils/id";
+import type { ChatMessage, RetryAction, StarterAction } from "./types/chat";
 import type { Page } from "./types/navigation";
 
-const ERROR_ID = "guide-error";
 const ARCHIVE_TITLE_MAX_LENGTH = 40;
 
-function deriveArchiveTitle(summary: string): string {
-  const trimmed = summary.trim();
+function deriveArchiveTitle(headline: string): string {
+  const trimmed = headline.trim();
   return trimmed.length > ARCHIVE_TITLE_MAX_LENGTH
     ? `${trimmed.slice(0, ARCHIVE_TITLE_MAX_LENGTH)}…`
     : trimmed;
 }
 
+const WELCOME_MESSAGE: ChatMessage = {
+  id: "welcome",
+  role: "assistant",
+  kind: "welcome",
+  text: "안녕하세요! 궁금한 안내문 주소를 보내주시면 쉽게 풀어서 알려드릴게요.",
+};
+
 export default function App() {
   const [page, setPage] = useState<Page>("main");
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
+  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [guide, setGuide] = useState<GuideResponse | null>(null);
-  const resultRef = useRef<HTMLElement>(null);
+  // Set right after the reader taps "더 궁금한 점 물어보기" on a guide card --
+  // the next non-URL message they send is routed to the follow-up endpoint
+  // against this URL instead of being treated as an out-of-scope question.
+  const [followUpUrl, setFollowUpUrl] = useState<string | null>(null);
   const { items: archiveItems, addItem: addArchiveItem } = usePolicyArchive();
+  const inputRef = useRef<HTMLInputElement>(null);
+  // A ref (not state) so the guard is synchronous: a fast double-tap on
+  // "보내기" can otherwise fire two requests before React re-renders with
+  // isLoading=true, letting two responses race and clobber each other.
+  const isSubmittingRef = useRef(false);
 
-  // Move focus to the result once it renders, so keyboard/screen-reader users
-  // land on the guide instead of needing to tab past the whole form again.
-  useEffect(() => {
-    if (guide && !isLoading && page === "main") {
-      resultRef.current?.focus();
-    }
-  }, [guide, isLoading, page]);
+  function appendMessage(message: ChatMessage) {
+    setMessages((prev) => [...prev, message]);
+  }
 
-  async function handleSubmit(url: string) {
+  function replaceLoadingWith(message: ChatMessage) {
+    setMessages((prev) => [...prev.filter((m) => m.kind !== "loading"), message]);
+  }
+
+  async function runGuideRequest(url: string) {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setIsLoading(true);
-    setError(null);
-    setGuide(null);
+    appendMessage({ id: createId(), role: "assistant", kind: "loading" });
     try {
-      const result = await fetchGuide(url);
-      setGuide(result);
-      addArchiveItem(url, deriveArchiveTitle(result.summary));
+      const guide = await fetchGuide(url);
+      replaceLoadingWith({ id: createId(), role: "assistant", kind: "guide-result", guide });
+      addArchiveItem(url, deriveArchiveTitle(guide.headline));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "알 수 없는 오류가 발생했어요.");
+      const text = err instanceof Error ? err.message : "알 수 없는 오류가 발생했어요.";
+      replaceLoadingWith({
+        id: createId(),
+        role: "assistant",
+        kind: "error",
+        text,
+        retry: { type: "guide", url },
+      });
     } finally {
       setIsLoading(false);
+      isSubmittingRef.current = false;
     }
+  }
+
+  async function runFollowUpRequest(sourceUrl: string, question: string) {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsLoading(true);
+    appendMessage({ id: createId(), role: "assistant", kind: "loading" });
+    try {
+      const answer = await fetchFollowUpAnswer(sourceUrl, question);
+      replaceLoadingWith({ id: createId(), role: "assistant", kind: "followup-answer", text: answer });
+    } catch (err) {
+      const text = err instanceof Error ? err.message : "알 수 없는 오류가 발생했어요.";
+      replaceLoadingWith({
+        id: createId(),
+        role: "assistant",
+        kind: "error",
+        text,
+        retry: { type: "followup", sourceUrl, question },
+      });
+    } finally {
+      setIsLoading(false);
+      isSubmittingRef.current = false;
+    }
+  }
+
+  function handleSend(raw: string) {
+    const trimmed = raw.trim();
+    if (!trimmed || isLoading) return;
+
+    appendMessage({ id: createId(), role: "user", kind: "text", text: trimmed });
+
+    if (isLikelyUrl(trimmed)) {
+      setFollowUpUrl(null);
+      void runGuideRequest(normalizeUrl(trimmed));
+      return;
+    }
+
+    if (followUpUrl) {
+      const url = followUpUrl;
+      setFollowUpUrl(null);
+      void runFollowUpRequest(url, trimmed);
+      return;
+    }
+
+    appendMessage({
+      id: createId(),
+      role: "assistant",
+      kind: "text",
+      text: "공공서비스 웹페이지 주소를 입력해 주시면 쉬운 안내문으로 바꿔 드릴게요. 예: https://www.gov.kr/...",
+    });
+  }
+
+  function handleRetry(messageId: string) {
+    const target = messages.find((m) => m.id === messageId);
+    if (!target || target.kind !== "error") return;
+    const retry: RetryAction = target.retry;
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    if (retry.type === "guide") {
+      void runGuideRequest(retry.url);
+    } else {
+      void runFollowUpRequest(retry.sourceUrl, retry.question);
+    }
+  }
+
+  function handleAskFollowUp(sourceUrl: string) {
+    setFollowUpUrl(sourceUrl);
+    appendMessage({
+      id: createId(),
+      role: "assistant",
+      kind: "text",
+      text: "어떤 점이 궁금하신가요? 아래 입력창에 적어주세요.",
+    });
+    inputRef.current?.focus();
+  }
+
+  function handleStarterSelect(action: StarterAction) {
+    if (action === "paste-url") {
+      inputRef.current?.focus();
+      return;
+    }
+    if (action === "quick-links") {
+      setPage("quick-links");
+      return;
+    }
+    if (action === "help") {
+      setPage("help");
+    }
+  }
+
+  function submitUrlFromElsewhere(url: string) {
+    setPage("main");
+    setFollowUpUrl(null);
+    appendMessage({ id: createId(), role: "user", kind: "text", text: url });
+    void runGuideRequest(url);
   }
 
   function handleNavigate(nextPage: Page) {
     setPage(nextPage);
-    setIsSidebarOpen(false);
-  }
-
-  function handleArchiveSelect(url: string) {
-    setPage("main");
-    setIsSidebarOpen(false);
-    void handleSubmit(url);
-  }
-
-  function handleQuickLinkSelect(url: string) {
-    setPage("main");
-    void handleSubmit(url);
-  }
-
-  function handleReset() {
-    setGuide(null);
-    setError(null);
   }
 
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
-      <TopBar isSidebarOpen={isSidebarOpen} onToggleSidebar={() => setIsSidebarOpen((open) => !open)} />
+    <div className="flex h-dvh justify-center bg-frame md:py-6">
+      {/* Mobile app frame: full-bleed on phones, a centered "device" card on
+          wider viewports so the layout always reads as a native app. */}
+      <div className="flex h-full w-full max-w-md flex-col overflow-hidden bg-paper md:h-[calc(100vh-3rem)] md:rounded-3xl md:border-4 md:border-ink md:shadow-sticker">
+        <TopBar currentPage={page} />
 
-      <Sidebar currentPage={page} isOpen={isSidebarOpen} onNavigate={handleNavigate} />
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {page === "main" ? (
+            <MainPage
+              messages={messages}
+              isLoading={isLoading}
+              isFollowUpMode={followUpUrl !== null}
+              onSend={handleSend}
+              onStarterSelect={handleStarterSelect}
+              onRetry={handleRetry}
+              onAskFollowUp={handleAskFollowUp}
+              inputRef={inputRef}
+            />
+          ) : (
+            <div className="flex-1 overflow-y-auto">
+              {page === "archive" && <ArchivePage items={archiveItems} onSelect={submitUrlFromElsewhere} />}
+              {page === "settings" && <SettingsPage />}
+              {page === "quick-links" && <QuickLinksPage onSelect={submitUrlFromElsewhere} />}
+              {page === "help" && <HelpPage />}
+            </div>
+          )}
+        </div>
 
-      <div className="flex-1">
-        {page === "main" && (
-          <MainPage
-            isLoading={isLoading}
-            error={error}
-            guide={guide}
-            onSubmit={handleSubmit}
-            onReset={handleReset}
-            resultRef={resultRef}
-            errorId={ERROR_ID}
-          />
-        )}
-        {page === "archive" && <ArchivePage items={archiveItems} onSelect={handleArchiveSelect} />}
-        {page === "settings" && <SettingsPage />}
-        {page === "quick-links" && <QuickLinksPage onSelect={handleQuickLinkSelect} />}
-        {page === "help" && <HelpPage />}
+        <Sidebar currentPage={page} onNavigate={handleNavigate} />
       </div>
     </div>
   );

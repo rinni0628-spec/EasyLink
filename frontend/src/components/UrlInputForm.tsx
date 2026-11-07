@@ -2,7 +2,6 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 
 interface UrlInputFormProps {
-  isLoading: boolean;
   onSubmit: (url: string) => void;
   hasError: boolean;
   errorId: string;
@@ -13,7 +12,7 @@ interface UrlInputFormProps {
 // consistent guidance regardless of their device settings.
 const URL_VALIDITY_MESSAGE = "올바른 웹사이트 주소를 입력해 주세요 (예: https://www.gov.kr/...)";
 
-export function UrlInputForm({ isLoading, onSubmit, hasError, errorId }: UrlInputFormProps) {
+export function UrlInputForm({ onSubmit, hasError, errorId }: UrlInputFormProps) {
   const [url, setUrl] = useState("");
 
   function handleSubmit(event: FormEvent) {
@@ -23,9 +22,9 @@ export function UrlInputForm({ isLoading, onSubmit, hasError, errorId }: UrlInpu
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <label htmlFor="url-input" className="text-lg font-bold">
-        공공서비스 웹페이지 주소를 입력하세요
+    <form onSubmit={handleSubmit} className="card-sticker flex flex-col gap-4 rounded-3xl p-6">
+      <label htmlFor="url-input" className="text-lg font-bold text-ink">
+        공공서비스 웹페이지 주소를 붙여넣으세요
       </label>
       <input
         id="url-input"
@@ -41,14 +40,13 @@ export function UrlInputForm({ isLoading, onSubmit, hasError, errorId }: UrlInpu
         onInvalid={(event) => event.currentTarget.setCustomValidity(URL_VALIDITY_MESSAGE)}
         aria-invalid={hasError}
         aria-describedby={hasError ? errorId : undefined}
-        className="rounded-lg border-4 border-ink px-4 py-4 text-lg focus:border-primary focus:outline-none"
+        className="rounded-2xl border-4 border-ink bg-paper px-4 py-4 text-lg text-ink outline-none focus:border-primary"
       />
       <button
         type="submit"
-        disabled={isLoading}
-        className="rounded-lg bg-primary px-6 py-4 text-xl font-bold text-paper transition-colors hover:bg-primary-dark focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:bg-primary/60"
+        className="flex min-h-[64px] items-center justify-center rounded-2xl border-4 border-ink bg-[#FFB347] px-6 py-4 text-lg font-black text-[#333333] shadow-sticker-sm transition-transform hover:bg-[#FFA733] active:scale-95 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
-        {isLoading ? "안내문을 만드는 중..." : "쉬운 안내문 만들기"}
+        쉽게 요약하기
       </button>
     </form>
   );
